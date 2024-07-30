@@ -5,13 +5,20 @@ from gurobipy import GRB
 products = {'A', 'B', 'C', 'D', 'E', 'F'}
 months = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}
 
-# Defining the profit margins for each product
-profit_margins = {'A': 80, 'B': 200, 'C': 210, 'D': 65, 'E': 150, 'F': 150}
+# NEW
+# Defining the profit price and cost for each product
+purchase_price = {'A': 395, 'B': 1060, 'C': 650, 'D': 375, 'E': 1030, 'F': 630}
+selling_price = {'A': 475, 'B': 1260, 'C': 860, 'D': 440, 'E': 1180, 'F': 780}
 
 # Defining the costs
 trucking_cost = 4000
 delivery_cost_per_trip = 675
 annual_labor_cost = 499200
+
+# NEW
+# Defining the monthly holding cost rate or interest rate, and creating a dictionary of cost for each product
+holding_rate = 0.20 / 12
+product_holding = {key: value * holding_rate for key, value in purchase_price.items()}
 
 # Defining the crate capacity for each product
 crate_capacity = {'A': 250, 'B': 70, 'C': 125, 'D': 250, 'E': 70, 'F': 125}
@@ -53,7 +60,8 @@ s = model.addVars(months, vtype=GRB.INTEGER, name="s")
 
 # Setting the objective function to be the profit of products sold less the restock trucking cost, delivery trucking cost and annual labor cost
 model.setObjective(
-    gp.quicksum(profit_margins[prod] * Q[prod, month] for prod in products for month in months)
+    gp.quicksum(selling_price[prod] * forecasted_demand[prod][month] - purchase_price[prod] * Q[prod, month] - product_holding[prod] * I[prod, month] for prod in products for month in months)
+    # gp.quicksum(selling_price[prod] * forecasted_demand[prod][month] - purchase_price[prod] * Q[prod, month] for prod in products for month in months)
     - trucking_cost * gp.quicksum(t[month] for month in months)
     - delivery_cost_per_trip * gp.quicksum(s[month] for month in months)
     - annual_labor_cost,
@@ -70,9 +78,10 @@ for prod in products:
         if month == 0:
             model.addConstr(Q[prod, month] - I[prod, month] == forecasted_demand[prod][month], f"demand_{prod}_{month}")
 
+        # REMOVED FINAL MONTH INVENTORY CONSTRAINT
         # If it is the last month, there is no ending inventory, so the order quantity is just enough to meet the demand given the entering inventory
-        elif month == 11:
-            model.addConstr(I[prod, month-1] + Q[prod, month] == forecasted_demand[prod][month], f"demand_{prod}_{month}")
+        #elif month == 11:
+        #    model.addConstr(I[prod, month-1] + Q[prod, month] == forecasted_demand[prod][month], f"demand_{prod}_{month}")
 
         # For all other months, the ending inventory is the entering inventory plus order quantity minus demand
         else:
